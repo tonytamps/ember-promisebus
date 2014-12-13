@@ -1,3 +1,5 @@
+[![Build Status](https://secure.travis-ci.org/SohumB/promisebus.png)](http://travis-ci.org/SohumB/promisebus)
+
 An EventEmitter-like interface for promises.
 
 Like EventEmitter, it handles triggering sequences of asynchronous
