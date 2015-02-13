@@ -12,7 +12,8 @@ describe('PromiseBus', function() {
     bus.workers('event').should.deep.equal({
       foo: {
         dependencies: [],
-        worker: worker
+        worker: worker,
+        name: 'foo'
       }
     });
   });
@@ -26,7 +27,8 @@ describe('PromiseBus', function() {
     bus.workers('event').should.deep.equal({
       foo: {
         dependencies: [],
-        worker: worker
+        worker: worker,
+        name: 'foo'
       }
     });
   });

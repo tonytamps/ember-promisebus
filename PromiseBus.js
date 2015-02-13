@@ -30,6 +30,7 @@ PromiseBus.prototype.register = function(event, name, dependencies, worker) {
   }
 
   this.bus[event][name] = {
+    name: name,
     dependencies: dependencies,
     worker: worker
   };
@@ -106,7 +107,7 @@ PromiseBus.prototype._buildGraph = function(event) {
     if (undone === lastUndone) {
       var unbuilt = _(tasks).reject('built').map('name').value();
       throw new Error('Unsatisfiable dependency graph found for event ' + event +
-                      '(unresolved tasks: ' + unbuilt.join(', ') + ')');
+                      ' (unresolved tasks: ' + unbuilt.join(', ') + ')');
     }
 
     lastUndone = undone;
