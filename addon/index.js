@@ -7,7 +7,7 @@ Promise.props = function props(obj) {
   return new Promise(function(resolve, reject) {
 
     var promises = [];
-    _.each(obj, function(key, val) {
+    _.each(obj, function(val) {
       promises.push(val);
     });
 
