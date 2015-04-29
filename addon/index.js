@@ -140,4 +140,4 @@ PromiseBus.prototype._buildGraph = function(event) {
   return results;
 };
 
-module.exports = PromiseBus;
+export default PromiseBus;
