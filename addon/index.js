@@ -1,5 +1,29 @@
-var Promise = require('bluebird');
-var _ = require('lodash');
+/*globals _, Promise */
+
+/**
+ * A bad implementation of Promise.all() for an object's keys.
+ */
+Promise.props = function props(obj) {
+  return new Promise(function(resolve, reject) {
+
+    var promises = [];
+    _.each(obj, function(key, val) {
+      promises.push(val);
+    });
+
+    Promise.all(promises)
+      .then(function(resolvedValues) {
+        var returnObj = {};
+
+        _.each(_.keys(obj), function(key, index) {
+          returnObj[key] = resolvedValues[index];
+        });
+
+        return resolve(returnObj);
+      })
+      .catch(reject);
+  });
+};
 
 function PromiseBus() {
   this.bus = {};
@@ -91,7 +115,7 @@ PromiseBus.prototype._buildGraph = function(event) {
     // Don't do circular graphs!
     _.each(tasks, function buildTask(task, name) {
       // if we haven't built the task yet, and all its dependencies are ready
-      if (!task.built && _.all(_.at(results, task.dependencies)))  {
+      if (!task.built && _.all(_.at(results, task.dependencies))) {
         results[name] = Promise.props(_.pick(results, task.dependencies))
           .then(function(values) {
             return task.worker.apply(null, args.concat([values]));
@@ -107,7 +131,7 @@ PromiseBus.prototype._buildGraph = function(event) {
     if (undone === lastUndone) {
       var unbuilt = _(tasks).reject('built').map('name').value();
       throw new Error('Unsatisfiable dependency graph found for event ' + event +
-                      ' (unresolved tasks: ' + unbuilt.join(', ') + ')');
+      ' (unresolved tasks: ' + unbuilt.join(', ') + ')');
     }
 
     lastUndone = undone;
