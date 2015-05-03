@@ -9,9 +9,9 @@ Promise.props = function props(obj) {
 
   var promises = [];
   var keys = [];
-  _.each(obj, function(val, keys) {
+  _.each(obj, function(val, key) {
     promises.push(val);
-    keys.push(keys);
+    keys.push(key);
   });
 
   return Promise.all(promises)
