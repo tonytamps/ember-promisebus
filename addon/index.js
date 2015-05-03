@@ -1,62 +1,59 @@
-/*globals _, Promise */
+/*globals _ */
+
+var Promise = Ember.RSVP.Promise;
 
 /**
- * A bad implementation of Promise.all() for an object's keys.
+ * A basic implementation of Promise.all() but for an object's keys.
  */
 Promise.props = function props(obj) {
-  return new Promise(function(resolve, reject) {
 
-    var promises = [];
-    _.each(obj, function(val) {
-      promises.push(val);
-    });
-
-    Promise.all(promises)
-      .then(function(resolvedValues) {
-        var returnObj = {};
-
-        _.each(_.keys(obj), function(key, index) {
-          returnObj[key] = resolvedValues[index];
-        });
-
-        return resolve(returnObj);
-      })
-      .catch(reject);
+  var promises = [];
+  var keys = [];
+  _.each(obj, function(val, keys) {
+    promises.push(val);
+    keys.push(keys);
   });
+
+  return Promise.all(promises)
+    .then(function(resolvedValues) {
+      var returnObj = {};
+
+      _.each(keys, function(key, index) {
+        returnObj[key] = resolvedValues[index];
+      });
+
+      return returnObj;
+    });
 };
 
-function PromiseBus() {
+function PromiseBus(name) {
+  this.name = name || 'promisebus' + Math.floor(Math.random() * 65536);
   this.bus = {};
   return this;
 }
 
 /**
  * The equivalent of EventEmitter's `on`
- * @param {string} event The event to register this worker on
- * @param {string} [name] The name of the current worker. Taken from `worker.name` if unspecified. Must be unique; will overwrite the old worker with this name if it isn't
- * @param {Array.<string>} dependencies The list of workers on this event that this worker depends on
- * @param {function} worker The worker. Will be supplied the event's arguments first, then its dependencies as arguments
+ * @param {string} [name] The name of the current task. Taken from `task.name` if unspecified. Must be unique; will overwrite the old task with this name if it isn't
+ * @param {Array.<string>} dependencies The list of tasks on this event that this task depends on
+ * @param {function} task The task. Will be supplied the event's arguments first, then its dependencies as arguments
  * @return {this}
  */
-PromiseBus.prototype.register = function(event, name, dependencies, worker) {
-  if (!worker) {
-    worker = dependencies;
+PromiseBus.prototype.register = function(name, dependencies, task) {
+  if (!task) {
+    task = dependencies;
     dependencies = name;
-    name = worker.name;
+    name = task.name;
   }
 
   if (_.isEmpty(name)) {
     throw new Error('Empty name not allowed');
   }
 
-  if (!this.bus[event]) {
-    this.bus[event] = {};
-  }
-
-  this.bus[event][name] = {
+  this.bus[name] = {
     name: name,
     dependencies: dependencies,
-    worker: worker
+    fn: task
   };
 
   return this;
@@ -64,44 +61,81 @@ PromiseBus.prototype.register = function(event, name, dependencies, worker) {
 
 /**
  * The equivalent of EventEmitter's `removeListener`
- * @param {string} event The event to unregister from
- * @param {string} name The worker to unregister
+ * @param {string} name The task to unregister
  * @return {this}
  */
-PromiseBus.prototype.unregister = function(event, name) {
-  if (this.bus[event]) {
-    delete this.bus[event][name];
-  }
-
+PromiseBus.prototype.unregister = function(name) {
+  delete this.bus[name];
   return this;
 };
 
 /**
  * The equivalent of EventEmitter's `listeners`
- * @param {string} event The event to get the hash of workers for
- * @return {Object.<string,{dependencies: Array.<string>, worker: function}>}
+ * @return {Object.<string,{dependencies: Array.<string>, task: function}>}
  */
-PromiseBus.prototype.workers = function(event) {
-  return this.bus[event] || {};
+PromiseBus.prototype.tasks = function() {
+  return this.bus || {};
 };
 
 /**
  * The equivalent of EventEmitter's `emit`
- * @param {string} event The event to run
- * @param {...?} args Optional additional arguments for the workers
+ * @param {...?} args Optional additional arguments for the tasks
  * @return {Promise.<Object.<string, ?>>} returns a promise for the results
  */
 PromiseBus.prototype.run = function() {
-  return Promise.props(this._buildGraph.apply(this, arguments));
+  var args = Array.prototype.slice.call(arguments, 0);
+  return Promise.props(this._buildGraph.apply(this, [this.bus].concat(args)));
 };
+
+/**
+ * Run specified tasks, with their dependencies. Doesn't run unrelated tasks.
+ * @param {Array<string>} names The tasks to run
+ * @param {...?} args Optional additional arguments for the task
+ * @return {Promise.<Object.<string, ?>>} returns a promise for the results
+ */
+PromiseBus.prototype.runTasks = function(names) {
+  var args = Array.prototype.slice.call(arguments, 1);
+  if (_.isString(names)) {
+    names = [names];
+  }
+
+  var relevantTasks = function(bus, names) {
+    if (names.length === 0) {
+      return [];
+    }
+
+    var deps = Array.prototype.concat.apply(
+      [], _.map(names, function(name) {
+        return bus[name].dependencies;
+      }));
+
+    return names.concat(relevantTasks(bus, _.uniq(deps)));
+  };
+
+  var bus = _.pick(this.bus, relevantTasks(this.bus, names));
+
+  var promises = this._buildGraph.apply(this, [bus].concat(args));
+  return Promise.props(_.pick(promises, names));
+};
+
+/**
+ * Run specified task, with its dependencies. Doesn't run unrelated tasks.
+ * @param {Array<string>} name The task to run
+ * @param {...?} args Optional additional arguments for the task
+ * @return {Promise.<?>} returns a promise for the results
+ */
+PromiseBus.prototype.runTask = function(name) {
+  return this.runTasks.apply(this, arguments).get(name);
+};
+
 
 // this function synchronously builds the promise chain as
 // specified by the dependency information. It uses the string keys of
-// the given workers to late-bind promises to each other's `.then`
+// the given tasks to late-bind promises to each other's `.then`
 // functions.
-PromiseBus.prototype._buildGraph = function(event) {
+PromiseBus.prototype._buildGraph = function(bus) {
   var args = Array.prototype.slice.call(arguments, 1);
-  var tasks = _.cloneDeep(this.bus[event]);
+  var tasks = _.cloneDeep(bus);
 
   var results = {};
   var undone = _.keys(tasks).length;
@@ -118,7 +152,7 @@ PromiseBus.prototype._buildGraph = function(event) {
       if (!task.built && _.all(_.at(results, task.dependencies))) {
         results[name] = Promise.props(_.pick(results, task.dependencies))
           .then(function(values) {
-            return task.worker.apply(null, args.concat([values]));
+            return task.fn.apply(null, args.concat([values]));
           });
 
         task.built = true;
@@ -130,7 +164,7 @@ PromiseBus.prototype._buildGraph = function(event) {
     // waiting on something else
     if (undone === lastUndone) {
       var unbuilt = _(tasks).reject('built').map('name').value();
-      throw new Error('Unsatisfiable dependency graph found for event ' + event +
+      throw new Error('Unsatisfiable dependency graph found for promisebus ' + this.name +
       ' (unresolved tasks: ' + unbuilt.join(', ') + ')');
     }
 
