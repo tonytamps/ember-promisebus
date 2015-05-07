@@ -87,3 +87,19 @@ And our mogs go happy to good homes.
 - `event`, String naming the event to run.
 - `args`, Arguments to pass to the workers
 - Returns a Promise for an object of the form `{ name: return value }`
+
+# Using Inside an Addon
+
+ember-promisebus relies on a call to `app.import()` which it cannot make when installed as a 
+dependency of an addon (as opposed to an app). You need to call its `addImports(app)` method
+from the containing addon:
+
+```js
+module.exports = {
+  name: 'containing-addon',
+  included: function(app, parentAddon) {
+    this._super.included.apply(this, arguments);
+    require('ember-promisebus').addImports(app);
+  }
+};
+```
